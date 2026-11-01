@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Centavo-ai | Transactions Mockup</title>
+    <title>Centavo-ai | Interactive Mockup</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -21,6 +21,8 @@
             --radius-md: 8px;
             --radius-lg: 12px;
         }
+
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -43,169 +45,250 @@
         .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 1.25rem; margin-bottom: 32px; padding: 0 8px; }
         .brand-mark { width: 32px; height: 32px; border-radius: 50%; background: #8fd4b5; color: var(--bg-sidebar); display: grid; place-items: center; font-weight: 700; }
         .nav-item { padding: 10px 16px; border-radius: var(--radius-md); color: var(--text-on-dark-muted); font-size: 0.875rem; margin-bottom: 2px; cursor: pointer; }
+        .nav-item:hover { background: rgba(255,255,255,0.05); }
+        .nav-item.active { background: rgba(255,255,255,0.1); color: var(--text-on-dark); font-weight: 600; }
         .nav-item.active { background: rgba(255,255,255,0.1); color: var(--text-on-dark); font-weight: 600; }
         
         /* Main Content */
         .main { padding: 32px 40px; }
+        .page-view { display: none; } /* Hide all pages by default */
+        .page-view.active { display: block; } /* Show active page */
+        
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .title { font-size: 1.5rem; font-weight: 600; margin: 0; }
+        .subtitle { color: var(--text-secondary); margin-top: 4px; font-size: 0.875rem; }
         
-        /* Filters & Summary */
-        .filters { display: flex; gap: 12px; margin-bottom: 24px; }
-        .filter-btn { background: white; border: 1px solid #e5e5e0; padding: 8px 16px; border-radius: var(--radius-md); font-family: inherit; font-size: 0.875rem; cursor: pointer; color: var(--text-primary); }
+        /* Common UI Elements */
+        .btn { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer; font-size: 0.875rem; }
+        .btn-outline { background: white; border: 1px solid #e5e5e0; color: var(--text-primary); padding: 8px 16px; border-radius: var(--radius-md); cursor: pointer; font-size: 0.875rem; }
+        .card { background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid #e5e5e0; padding: 24px; margin-bottom: 24px; }
         
-        .summary { display: grid; grid-template-columns: 1fr 1fr 1fr; background: white; border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; border: 1px solid #e5e5e0; }
-        .summary > div { padding: 0 24px; border-right: 1px solid #e5e5e0; }
-        .summary > div:last-child { border-right: none; }
-        .summary-label { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 4px; display: block; }
-        .summary-val { font-size: 1.25rem; font-weight: 600; }
-        
-        /* Table */
-        .table-card { background: white; border-radius: var(--radius-lg); border: 1px solid #e5e5e0; overflow: hidden; }
-        .table-header { display: flex; justify-content: space-between; align-items: center; padding: 24px; border-bottom: 1px solid #e5e5e0; }
-        .add-btn { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer; font-size: 0.875rem;}
-        
+        /* Overview Page Specific */
+        .overview-hero { background: var(--bg-sidebar); color: white; padding: 32px; border-radius: var(--radius-lg); margin-bottom: 24px; }
+        .overview-hero h2 { margin: 0; font-size: 2rem; font-weight: 600; margin-top: 8px; }
+        .overview-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+        .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; background: white; border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; border: 1px solid #e5e5e0; }
+        .summary-grid > div { padding: 0 24px; border-right: 1px solid #e5e5e0; }
+        .summary-grid > div:last-child { border-right: none; }
+
+        /* Table (Transactions & Budgets) */
         table { width: 100%; border-collapse: collapse; text-align: left; }
         th { padding: 16px 24px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); border-bottom: 1px solid #e5e5e0; }
         td { padding: 16px 24px; border-bottom: 1px solid #f0f0eb; font-size: 0.875rem; }
         .cat-cell { display: flex; align-items: center; gap: 8px; }
         .dot { width: 6px; height: 6px; border-radius: 50%; }
         .amount { text-align: right; font-weight: 600; }
-        
         .text-green { color: var(--green); }
         .text-red { color: var(--red); }
         .text-purple { color: var(--purple); }
 
-        /* Modal Overlay (For screenshot purposes, it's visible by default) */
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-            display: flex; align-items: center; justify-content: center;
-        }
-        .modal {
-            background: white; width: 100%; max-width: 500px; border-radius: var(--radius-lg); padding: 32px;
-        }
+        /* Settings Specific */
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .settings-item { display: flex; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid #f0f0eb; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; width: 100%; max-width: 500px; border-radius: var(--radius-lg); padding: 32px; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .modal-header h2 { margin: 0; font-size: 1.25rem; }
         .close-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-secondary); }
-        .modal p { color: var(--text-secondary); font-size: 0.875rem; margin-top: 0; margin-bottom: 24px; }
-        
         .tabs { display: flex; background: #f5f4f1; border-radius: var(--radius-md); padding: 4px; margin-bottom: 24px; }
         .tab { flex: 1; text-align: center; padding: 8px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); border-radius: 4px; cursor: pointer; }
         .tab.active { background: white; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
         .form-group label { font-size: 0.875rem; font-weight: 500; }
         .form-group input, .form-group select { padding: 10px; border: 1px solid #e5e5e0; border-radius: var(--radius-md); font-family: inherit; font-size: 0.875rem; }
-        
         .modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e5e0; }
-        .btn-cancel { background: white; border: 1px solid #e5e5e0; padding: 8px 16px; border-radius: var(--radius-md); cursor: pointer; font-weight: 500;}
-        .btn-submit { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: var(--radius-md); cursor: pointer; font-weight: 500;}
     </style>
 </head>
 <body>
 
-    <!-- Sidebar -->
+    <!-- Sidebar Navigation -->
     <aside class="sidebar">
         <div class="brand"><div class="brand-mark">C</div>Centavo-ai</div>
-        <div class="nav-item">Overview</div>
-        <div class="nav-item">Accounts</div>
-        <div class="nav-item">Budgets & Goals</div>
-        <div class="nav-item active">Transactions</div>
-        <div class="nav-item">Trends</div>
+        <div class="nav-item active" onclick="switchPage('overview', this)">Overview</div>
+        <div class="nav-item" onclick="switchPage('transactions', this)">Transactions</div>
+        <div class="nav-item" onclick="switchPage('budgets', this)">Budgets & Goals</div>
+        <div class="nav-item" onclick="switchPage('settings', this)">Profile & Settings</div>
     </aside>
 
-    <!-- Main Content -->
+    <!-- Main Content Area -->
     <main class="main">
-        <div class="header">
-            <div>
-                <h1 class="title">Transactions</h1>
-                <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.875rem;">Tuesday, September 15 · Your plan is 82% on track</p>
+        
+        <!-- ==================== PAGE: OVERVIEW ==================== -->
+        <div id="page-overview" class="page-view active">
+            <div class="header">
+                <div>
+                    <h1 class="title">Good morning, Maya</h1>
+                    <p class="subtitle">Tuesday, September 15 · Your plan is 82% on track</p>
+                </div>
             </div>
-            <div style="display: flex; gap: 16px;">
-                <input type="text" placeholder="Search transactions..." style="padding: 8px 16px; border-radius: 20px; border: 1px solid #e5e5e0;">
-                <button style="border: 1px solid #e5e5e0; background: white; padding: 8px 16px; border-radius: 20px; cursor: pointer;">Review & corrections <span style="background: var(--red); color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.75rem;">3</span></button>
+
+            <div class="overview-hero">
+                <span style="font-size: 0.75rem; color: #a8b5ae; letter-spacing: 0.05em; text-transform: uppercase;">Total Balance</span>
+                <h2>$22,160.40</h2>
+                <p style="color: #8fd4b5; margin: 8px 0 0 0;">↗ $1,240 this month</p>
+            </div>
+
+            <div class="overview-grid">
+                <div class="card">
+                    <h3 style="margin-top: 0;">Accounts</h3>
+                    <div class="settings-item">
+                        <span>Everyday checking</span>
+                        <span style="font-weight: 600;">$4,820.00</span>
+                    </div>
+                    <div class="settings-item">
+                        <span>Rainy day fund</span>
+                        <span style="font-weight: 600; color: var(--purple);">$18,400.00</span>
+                    </div>
+                    <div class="settings-item">
+                        <span>Rewards card</span>
+                        <span style="font-weight: 600; color: var(--red);">-$1,240.00</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 style="margin-top: 0;">Plan Health</h3>
+                    <div style="width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(var(--green) 82%, #e5e5e0 0); display: flex; align-items: center; justify-content: center;">
+                        <div style="width: 60px; height: 60px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.875rem;">82%</div>
+                    </div>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 16px;">You're within range on 7 of 9 monthly goals.</p>
+                </div>
             </div>
         </div>
 
-        <div class="filters">
-            <button class="filter-btn">Date Range ▼</button>
-            <button class="filter-btn">All Accounts ▼</button>
-            <button class="filter-btn">Categories ▼</button>
+        <!-- ==================== PAGE: TRANSACTIONS ==================== -->
+        <div id="page-transactions" class="page-view">
+            <div class="header">
+                <div>
+                    <h1 class="title">Transactions</h1>
+                    <p class="subtitle">Tuesday, September 15 · Your plan is 82% on track</p>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+                <button class="btn-outline">Date Range ▼</button>
+                <button class="btn-outline">All Accounts ▼</button>
+                <button class="btn-outline">Categories ▼</button>
+            </div>
+
+            <div class="summary-grid">
+                <div><span style="font-size: 0.875rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Period Income</span><span style="font-size: 1.25rem; font-weight: 600; color: var(--green);">$6,200.00</span></div>
+                <div><span style="font-size: 0.875rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Period Expenses</span><span style="font-size: 1.25rem; font-weight: 600;">$3,450.00</span></div>
+                <div><span style="font-size: 0.875rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Net Savings</span><span style="font-size: 1.25rem; font-weight: 600; color: var(--purple);">+$2,750.00</span></div>
+            </div>
+
+            <div class="card" style="padding: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 24px; border-bottom: 1px solid #e5e5e0;">
+                    <h2 style="margin: 0; font-size: 1.25rem;">Recent Activity</h2>
+                    <button class="btn" onclick="openModal()">+ Add transaction</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>Description</th><th>Category</th><th>Account</th><th style="text-align: right;">Amount</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Oct 26, 2026</td><td style="font-weight: 500;">Whole Foods Market</td>
+                            <td><div class="cat-cell"><span class="dot" style="background: var(--green);"></span>Groceries</div></td>
+                            <td style="color: var(--text-secondary);">Primary Checking</td>
+                            <td class="amount">-$124.50</td>
+                        </tr>
+                        <tr>
+                            <td>Oct 25, 2026</td><td style="font-weight: 500;">Acme Corp Salary</td>
+                            <td><div class="cat-cell"><span class="dot" style="background: var(--green);"></span>Income</div></td>
+                            <td style="color: var(--text-secondary);">Primary Checking</td>
+                            <td class="amount text-green">+$3,100.00</td>
+                        </tr>
+                        <tr>
+                            <td>Oct 24, 2026</td><td style="font-weight: 500;">Uber Rides</td>
+                            <td><div class="cat-cell"><span class="dot" style="background: #d99a2b;"></span>Transport</div></td>
+                            <td style="color: var(--text-secondary);">Amex Gold Card</td>
+                            <td class="amount">-$24.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <div class="summary">
-            <div>
-                <span class="summary-label">Period Income</span>
-                <span class="summary-val text-green">$6,200.00</span>
+        <!-- ==================== PAGE: BUDGETS ==================== -->
+        <div id="page-budgets" class="page-view">
+            <div class="header">
+                <div>
+                    <h1 class="title">Budgets & Goals</h1>
+                    <p class="subtitle">Track your monthly limits and active limits</p>
+                </div>
+                <button class="btn">+ Add Budget</button>
             </div>
-            <div>
-                <span class="summary-label">Period Expenses</span>
-                <span class="summary-val">$3,450.00</span>
-            </div>
-            <div>
-                <span class="summary-label">Net Savings</span>
-                <span class="summary-val text-purple">+$2,750.00</span>
+
+            <div class="card" style="display: grid; grid-template-columns: 1fr 2fr; gap: 32px; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 24px;">
+                    <div style="width: 100px; height: 100px; border-radius: 50%; background: conic-gradient(var(--purple) 69%, #e5e5e0 0); display: flex; align-items: center; justify-content: center;">
+                        <div style="width: 76px; height: 76px; background: white; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <span style="font-weight: 700; font-size: 1.25rem;">69%</span>
+                            <span style="font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase;">Spent</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="margin-bottom: 16px;"><span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">Total Spent</span><span style="font-weight: 600; font-size: 1.25rem;">$3,450</span></div>
+                        <div><span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">Total Limit</span><span style="font-weight: 600; font-size: 1.25rem;">$5,000</span></div>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="card" style="margin: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;"><span style="font-weight: 500;">🛒 Groceries</span><span style="font-size: 0.75rem; background: #f5f4f1; padding: 2px 6px; border-radius: 4px;">80%</span></div>
+                        <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 8px;">$640 <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 400;">of $800</span></div>
+                        <div style="height: 6px; background: #e5e5e0; border-radius: 3px;"><div style="height: 100%; width: 80%; background: var(--purple); border-radius: 3px;"></div></div>
+                    </div>
+                    <div class="card" style="margin: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;"><span style="font-weight: 500;">🍽️ Dining Out</span><span style="font-size: 0.75rem; background: #fce8e8; color: var(--red); padding: 2px 6px; border-radius: 4px;">113%</span></div>
+                        <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 8px;">$450 <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 400;">of $400</span></div>
+                        <div style="height: 6px; background: #e5e5e0; border-radius: 3px;"><div style="height: 100%; width: 100%; background: var(--red); border-radius: 3px;"></div></div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="table-card">
-            <div class="table-header">
-                <h2 style="margin: 0; font-size: 1.25rem;">Recent Activity</h2>
-                <button class="add-btn">+ Add transaction</button>
+        <!-- ==================== PAGE: SETTINGS ==================== -->
+        <div id="page-settings" class="page-view">
+            <div class="header">
+                <div>
+                    <h1 class="title">Profile and settings</h1>
+                    <p class="subtitle">Manage your profile, preferences and privacy</p>
+                </div>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Description / Merchant</th>
-                        <th>Category</th>
-                        <th>Account</th>
-                        <th style="text-align: right;">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Oct 26, 2026</td>
-                        <td style="font-weight: 500;">Whole Foods Market</td>
-                        <td><div class="cat-cell"><span class="dot" style="background: #2d7a5f;"></span>Groceries</div></td>
-                        <td style="color: var(--text-secondary);">Primary Checking</td>
-                        <td class="amount">-$124.50</td>
-                    </tr>
-                    <tr>
-                        <td>Oct 25, 2026</td>
-                        <td style="font-weight: 500;">Acme Corp Salary</td>
-                        <td><div class="cat-cell"><span class="dot" style="background: #2d7a5f;"></span>Income</div></td>
-                        <td style="color: var(--text-secondary);">Primary Checking</td>
-                        <td class="amount text-green">+$3,100.00</td>
-                    </tr>
-                    <tr>
-                        <td>Oct 24, 2026</td>
-                        <td style="font-weight: 500;">Uber Rides</td>
-                        <td><div class="cat-cell"><span class="dot" style="background: #d99a2b;"></span>Transport</div></td>
-                        <td style="color: var(--text-secondary);">Amex Gold Card</td>
-                        <td class="amount">-$24.00</td>
-                    </tr>
-                    <tr>
-                        <td>Oct 22, 2026</td>
-                        <td style="font-weight: 500;">Netflix Subscription</td>
-                        <td><div class="cat-cell"><span class="dot" style="background: #c4453a;"></span>Entertainment</div></td>
-                        <td style="color: var(--text-secondary);">Preferred Rewards</td>
-                        <td class="amount">-$15.99</td>
-                    </tr>
-                </tbody>
-            </table>
+
+            <div class="card" style="display: flex; align-items: center; gap: 24px; margin-bottom: 24px;">
+                <div style="width: 64px; height: 64px; border-radius: 50%; background: #e5e5e0;"></div>
+                <div style="flex: 1;"><h2 style="margin: 0; font-size: 1.25rem;">Maya</h2><p style="margin: 4px 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">maya@email.com</p></div>
+                <button class="btn-outline">Edit profile</button>
+            </div>
+
+            <div class="settings-grid">
+                <div class="card">
+                    <h3 style="margin-top: 0;">Notifications</h3>
+                    <div class="settings-item"><span>Weekly check-in</span><div style="width: 36px; height: 20px; background: var(--green); border-radius: 10px; position: relative;"><div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px;"></div></div></div>
+                    <div class="settings-item"><span>Tip alerts</span><div style="width: 36px; height: 20px; background: var(--green); border-radius: 10px; position: relative;"><div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px;"></div></div></div>
+                </div>
+                <div class="card">
+                    <h3 style="margin-top: 0;">Currency and date</h3>
+                    <div class="settings-item"><span>Currency</span><span style="font-weight: 500;">USD ⌄</span></div>
+                    <div class="settings-item"><span>Date format</span><span style="font-weight: 500;">Sep 15, 2026 ⌄</span></div>
+                </div>
+            </div>
         </div>
+
     </main>
 
-    <!-- ADD TRANSACTION MODAL (Hardcoded open for screenshot) -->
-    <div class="modal-overlay">
+    <!-- ==================== MODALS ==================== -->
+    <div id="transaction-modal" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
                 <h2>Add transaction</h2>
-                <button class="close-btn">✕</button>
+                <button class="close-btn" onclick="closeModal()">✕</button>
             </div>
-            <p>Add the details that keep your plan accurate.</p>
+            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0; margin-bottom: 24px;">Add the details that keep your plan accurate.</p>
 
             <div class="tabs">
                 <div class="tab active">Expense</div>
@@ -223,7 +306,6 @@
                     <input type="text" value="Sep 15, 2026">
                 </div>
             </div>
-
             <div class="form-row">
                 <div class="form-group">
                     <label>Account *</label>
@@ -234,18 +316,45 @@
                     <select><option>Groceries</option></select>
                 </div>
             </div>
-
             <div class="form-group">
                 <label>Note (optional)</label>
                 <input type="text" value="Weekly groceries · Green Market">
             </div>
 
             <div class="modal-footer">
-                <button class="btn-cancel">Cancel</button>
-                <button class="btn-submit">Add Transaction</button>
+                <button class="btn-outline" onclick="closeModal()">Cancel</button>
+                <button class="btn">Add Transaction</button>
             </div>
         </div>
     </div>
 
+    <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+    <script>
+        // Switch between pages
+        function switchPage(pageId, navElement) {
+            // Hide all pages
+            document.querySelectorAll('.page-view').forEach(page => {
+                page.classList.remove('active');
+            });
+            // Remove active class from all nav items
+            document.querySelectorAll('.nav-item').forEach(nav => {
+                nav.classList.remove('active');
+            });
+
+            // Show selected page and highlight nav
+            document.getElementById('page-' + pageId).classList.add('active');
+            navElement.classList.add('active');
+        }
+
+        // Open the "Add Transaction" modal
+        function openModal() {
+            document.getElementById('transaction-modal').classList.add('active');
+        }
+
+        // Close the modal
+        function closeModal() {
+            document.getElementById('transaction-modal').classList.remove('active');
+        }
+    </script>
 </body>
 </html>
