@@ -113,21 +113,6 @@ function Transactions() {
     loadTransactions();
   }, [loadTransactions]);
 
-  // ===== MOCK DATA (Remove when backend is connected) =====
-  useEffect(() => {
-    setTransactions([
-      { id: 1, date: "2026-10-26", note: "Whole Foods Market", category_id: 1, account_id: 1, amount: 124.50, type: "expense" },
-      { id: 2, date: "2026-10-25", note: "Acme Corp Salary", category_id: 2, account_id: 1, amount: 3100.00, type: "income" },
-      { id: 3, date: "2026-10-24", note: "Uber Rides", category_id: 3, account_id: 2, amount: 24.00, type: "expense" },
-      { id: 4, date: "2026-10-22", note: "Netflix Subscription", category_id: 4, account_id: 2, amount: 15.99, type: "expense" },
-    ]);
-    setAccounts([{ id: 1, name: "Primary Checking" }, { id: 2, name: "Amex Gold Card" }]);
-    setAccountNameById(new Map([[1, "Primary Checking"], [2, "Amex Gold Card"]]));
-    setCategories([{ id: 1, name: "Groceries" }, { id: 2, name: "Income" }, { id: 3, name: "Transport" }, { id: 4, name: "Entertainment" }]);
-    setLoading(false);
-  }, []);
-  // ========================================================
-
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
