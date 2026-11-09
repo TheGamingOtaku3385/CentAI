@@ -1,0 +1,183 @@
+/* components/ChatPanel/ChatPanel.module.css */
+
+/* The closed state button (bottom right) */
+.chatToggleBtn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 12px 24px;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.2s;
+}
+
+.chatToggleBtn:hover {
+  transform: translateY(-2px);
+  background-color: var(--color-primary-hover);
+}
+
+/* The main chat panel */
+.chatPanel {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 380px;
+  height: 600px;
+  max-height: 80vh;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  overflow: hidden;
+}
+
+/* Header */
+.chatHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.chatHeader h2 {
+  margin: 0;
+  font-size: var(--font-size-h3);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  color: var(--color-text);
+}
+
+/* Messages Area */
+.messagesContainer {
+  flex: 1;
+  padding: var(--space-lg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  background-color: var(--color-surface-muted);
+}
+
+.message {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.messageAi {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.messageUser {
+  background-color: var(--color-primary);
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+/* Input Area */
+.chatForm {
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.inputWrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.chatInput {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-body);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.chatInput:focus {
+  border-color: var(--color-primary);
+}
+
+.actionButtons {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.sendBtn {
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sendBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  background-color: transparent;
+  color: var(--color-expense);
+  border: 1px solid var(--color-expense);
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .chatPanel {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    bottom: 0;
+    right: 0;
+    border-radius: 0;
+  }
+}
