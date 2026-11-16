@@ -1,6 +1,27 @@
 const BASE_URL = "/api";
 
-async function request(endpoint, { params = {}, options = {} } = {}) {
+// These endpoints never trigger a refresh-and-retry
+const NO_REFRESH = ["/auth/login", "/auth/signup", "/auth/refresh", "/auth/logout"];
+
+// If several requests expire together, they share one refresh call
+let refreshInFlight = null;
+
+function refreshSession() {
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
+async function request(endpoint, { params = {}, options = {}, retried = false } = {}) {
   const queryString = new URLSearchParams(params).toString();
   const url = queryString ? `${endpoint}?${queryString}` : endpoint;
 
@@ -13,7 +34,18 @@ async function request(endpoint, { params = {}, options = {} } = {}) {
     ...options,
   });
 
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
+
+  // Access token expired: refresh once, then retry this request
+  if (
+    response.status === 401 &&
+    data.code === "TOKEN_EXPIRED" &&
+    !retried &&
+    !NO_REFRESH.includes(endpoint)
+  ) {
+    const refreshed = await refreshSession();
+    if (refreshed) return request(endpoint, { params, options, retried: true });
+  }
 
   if (!response.ok) {
     const err = new Error(
@@ -86,7 +118,23 @@ export const api = {
         body: JSON.stringify(txData),
       },
     }),
+  updateTransaction: (id, txData) =>
+    request(`/transactions/${id}`, {
+      options: { method: "PUT", body: JSON.stringify(txData) },
+    }),
+  deleteTransaction: (id) =>
+    request(`/transactions/${id}`, { options: { method: "DELETE" } }),
+  renameCategory: (id, name) =>
+    request(`/categories/${id}`, {
+      options: { method: "PATCH", body: JSON.stringify({ name }) },
+    }),
   fetchBudgets: (params) => request("/budgets", { params }),
+  updateBudget: (id, monthly_limit) =>
+    request(`/budgets/${id}`, {
+      options: { method: "PATCH", body: JSON.stringify({ monthly_limit }) },
+    }),
+  deleteBudget: (id) =>
+    request(`/budgets/${id}`, { options: { method: "DELETE" } }),
   createBudget: (data) =>
     request("/budgets", {
       options: {
@@ -94,8 +142,19 @@ export const api = {
         body: JSON.stringify(data),
       },
     }),
-  fetchGoals: () => request("/goals"),
-  createGoal: (data) =>
+  fetchSavingsGoals: () => request("/goals"),
+  updateSavingsGoal: (id, data) =>
+    request(`/goals/${id}`, {
+      options: { method: "PATCH", body: JSON.stringify(data) },
+    }),
+  // money: "return" (back to accounts) or "spent" (drop from history).
+  // Omit it to get a 409 when the goal has contributions.
+  deleteSavingsGoal: (id, money) =>
+    request(`/goals/${id}`, {
+      params: money ? { money } : {},
+      options: { method: "DELETE" },
+    }),
+  createSavingsGoal: (data) =>
     request("/goals", {
       options: {
         method: "POST",
