@@ -1,7 +1,22 @@
+import { clearAiCache } from "../services/aiCache.js";
+import { sendError } from "../utils/errors.js";
 import express from "express";
 import pool from "../db.js";
+import { buildBudgetOverview, getBudgetTips } from "../services/budgetOverview.js";
 
 const router = express.Router();
+
+// GET /api/budgets/overview - each budget with this month's progress, plus AI tips
+router.get("/overview", async (req, res) => {
+  try {
+    const overview = await buildBudgetOverview(req.user.id);
+    const tips = await getBudgetTips(req.user.id);
+    res.status(200).json({ ...overview, tips });
+  } catch (err) {
+    console.error("Budget overview error:", err);
+    sendError(res, 500, "Failed to load the budget overview");
+  }
+});
 
 // GET /api/budgets - List the user's budgets with this month's spending
 router.get("/", async (req, res) => {
@@ -30,7 +45,7 @@ router.get("/", async (req, res) => {
     res.status(200).json(rows);
   } catch (err) {
     console.error("Budget fetch error:", err);
-    res.status(500).json({ error: "Failed to fetch budgets" });
+    sendError(res, 500, "Failed to fetch budgets");
   }
 });
 
@@ -47,9 +62,7 @@ router.post("/", async (req, res) => {
     limit <= 0 ||
     limit > 9999999999.99 // DECIMAL(12,2) max
   ) {
-    return res.status(400).json({
-      error: "category_id and a monthly_limit greater than 0 are required",
-    });
+    return sendError(res, 400, "category_id and a monthly_limit greater than 0 are required");
   }
 
   try {
@@ -58,25 +71,24 @@ router.post("/", async (req, res) => {
       [category_id, user_id],
     );
     if (cats.length === 0) {
-      return res.status(400).json({ error: "Invalid category" });
+      return sendError(res, 400, "Invalid category");
     }
 
     const [result] = await pool.query(
       "INSERT INTO budgets (user_id, category_id, monthly_limit) VALUES (?, ?, ?)",
       [user_id, category_id, limit],
     );
+    clearAiCache(user_id);
     res.status(201).json({
       message: "Budget created successfully",
       budgetId: result.insertId,
     });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
-      return res
-        .status(409)
-        .json({ error: "A budget already exists for this category" });
+      return sendError(res, 409, "A budget already exists for this category");
     }
     console.error("Budget creation error:", err);
-    res.status(500).json({ error: "Failed to create budget" });
+    sendError(res, 500, "Failed to create budget");
   }
 });
 
@@ -87,7 +99,7 @@ router.patch("/:id", async (req, res) => {
   const { monthly_limit } = req.body;
 
   if (!monthly_limit) {
-    return res.status(400).json({ error: "monthly_limit is required" });
+    return sendError(res, 400, "monthly_limit is required");
   }
 
   try {
@@ -97,15 +109,14 @@ router.patch("/:id", async (req, res) => {
     );
 
     if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ error: "Budget not found or unauthorized" });
+      return sendError(res, 404, "Budget not found or unauthorized");
     }
 
+    clearAiCache(user_id);
     res.status(200).json({ message: "Budget updated successfully" });
   } catch (err) {
     console.error("Budget update error:", err);
-    res.status(500).json({ error: "Failed to update budget" });
+    sendError(res, 500, "Failed to update budget");
   }
 });
 
@@ -121,15 +132,14 @@ router.delete("/:id", async (req, res) => {
     );
 
     if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ error: "Budget not found or unauthorized" });
+      return sendError(res, 404, "Budget not found or unauthorized");
     }
 
+    clearAiCache(user_id);
     res.status(200).json({ message: "Budget deleted successfully" });
   } catch (err) {
     console.error("Budget deletion error:", err);
-    res.status(500).json({ error: "Failed to delete budget" });
+    sendError(res, 500, "Failed to delete budget");
   }
 });
 

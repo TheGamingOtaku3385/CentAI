@@ -1,3 +1,4 @@
+import { sendError } from "./utils/errors.js";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -10,6 +11,7 @@ import categoriesRoutes from "./routes/categories.js";
 import aiRoutes from "./routes/ai.js";
 import authRoutes from "./routes/auth.js";
 import trendsRoutes from "./routes/trends.js";
+import reportsRoutes from "./routes/reports.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 
 const app = express();
@@ -26,13 +28,14 @@ app.use("/api/goals", authMiddleware, goalsRoutes);
 app.use("/api/categories", authMiddleware, categoriesRoutes);
 app.use("/api/ai", authMiddleware, aiRoutes);
 app.use("/api/trends", authMiddleware, trendsRoutes);
+app.use("/api/reports", authMiddleware, reportsRoutes);
 
 app.get("/api/health", async (req, res) => {
   try {
     await pool.query("SELECT 1");
     res.status(200).json({ status: "ok", db: "connected" });
   } catch (err) {
-    res.status(503).json({ status: "error", db: "disconnected" });
+    sendError(res, 503, "Database is not connected.");
   }
 });
 

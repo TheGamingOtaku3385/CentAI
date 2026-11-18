@@ -1,3 +1,4 @@
+import { sendError } from "../utils/errors.js";
 import express from "express";
 import pool from "../db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
@@ -12,7 +13,7 @@ router.get("/", authMiddleware, async (req, res) => {
     res.status(200).json(rows);
   } catch (err) {
     console.error("Account fetch error:", err);
-    res.status(500).json({ error: "Failed to fetch accounts" });
+    sendError(res, 500, "Failed to fetch accounts");
   }
 });
 
@@ -21,16 +22,12 @@ router.post("/", authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   if (!name || !type) {
-    return res
-      .status(400)
-      .json({ error: "name and type are required" });
+    return sendError(res, 400, "name and type are required");
   }
 
   const validTypes = ["checking", "savings", "credit_card", "cash"];
   if (!validTypes.includes(type)) {
-    return res
-      .status(400)
-      .json({ error: `type must be one of: ${validTypes.join(", ")}` });
+    return sendError(res, 400, `type must be one of: ${validTypes.join(", ")}`);
   }
 
   try {
@@ -38,8 +35,7 @@ router.post("/", authMiddleware, async (req, res) => {
       "INSERT INTO accounts (user_id, name, type, balance) VALUES (?, ?, ?, ?)",
       [userId, name, type, balance ?? 0.0],
     );
-    res
-      .status(201)
+    res.status(201)
       .json({
         id: result.insertId,
         user_id: userId,
@@ -48,7 +44,7 @@ router.post("/", authMiddleware, async (req, res) => {
         balance: balance ?? 0.0,
       });
   } catch (err) {
-    res.status(500).json({ error: "Failed to create account" });
+    sendError(res, 500, "Failed to create account");
   }
 });
 

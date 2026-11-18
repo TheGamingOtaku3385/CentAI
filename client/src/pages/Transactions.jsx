@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { toast } from "react-toastify";
 import { api } from "../services/api";
 import Layout from "../components/Layout/Layout";
 import Card from "../components/Card/Card";
+import EmptyState from "../components/EmptyState/EmptyState";
 import styles from "./Transactions.module.css";
 import { PencilIcon } from "../components/Icons/Icons";
 
@@ -62,7 +64,6 @@ function Transactions() {
   const [goals, setGoals] = useState([]);
   const [filters, setFilters] = useState({ category: "", account: "" });
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState("");
   const [page, setPage] = useState(1);
 
   const [datePreset, setDatePreset] = useState("last30");
@@ -73,10 +74,7 @@ function Transactions() {
   const [form, setForm] = useState(emptyForm());
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
-
-  // Transaction being edited; null means the form adds a new one
   const [editingTx, setEditingTx] = useState(null);
-  // Transaction waiting for delete confirmation
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -175,9 +173,10 @@ function Transactions() {
   const sourceAccount = accounts.find((a) => String(a.id) === String(form.account_id));
   const amountNum = Number(form.amount);
   const cardSource = isTransfer && sourceAccount?.type === "credit_card";
-  // When editing a transfer from the same account, its old amount is already out of the balance
   const editAddBack =
-    editingTx && editingTx.type === TRANSFER && String(editingTx.account_id) === String(form.account_id)
+    editingTx &&
+    editingTx.type === TRANSFER &&
+    String(editingTx.account_id) === String(form.account_id)
       ? parseFloat(editingTx.amount)
       : 0;
   const availableBalance = sourceAccount ? parseFloat(sourceAccount.balance) + editAddBack : 0;
@@ -213,15 +212,15 @@ function Transactions() {
   }
 
   async function confirmDelete() {
+    if (!deleteTarget) return;
     setDeleting(true);
     try {
       await api.deleteTransaction(deleteTarget.id);
       setDeleteTarget(null);
-      setNotice("Transaction deleted.");
+      toast.success("Transaction deleted.");
       await Promise.all([loadLookupData(), loadTransactions()]);
     } catch (err) {
-      setNotice(err.message || "Failed to delete transaction.");
-      setDeleteTarget(null);
+      toast.error(err.message || "Failed to delete transaction.");
     } finally {
       setDeleting(false);
     }
@@ -280,14 +279,14 @@ function Transactions() {
       }
       setShowForm(false);
       setEditingTx(null);
-      setNotice(
+      toast.success(
         editingTx
           ? "Transaction updated."
           : isTransfer ? "Transfer saved." : isSavings ? "Savings contribution saved." : "Transaction saved."
       );
       await Promise.all([loadLookupData(), loadTransactions()]);
     } catch (err) {
-      setFormError(err.message);
+      toast.error(err.message || "Failed to save transaction.");
     } finally {
       setSaving(false);
     }
@@ -317,7 +316,6 @@ function Transactions() {
               {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
             </select>
           </div>
-          <button className={styles.clearBtn} onClick={() => { loadLookupData(); loadTransactions(); }} aria-label="Refresh" title="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg></button>
           <button className={styles.clearBtn} onClick={clearFilters}>Clear Filters</button>
           <button className={styles.primaryBtn} onClick={openForm}>+ Add transaction</button>
         </div>
@@ -333,8 +331,6 @@ function Transactions() {
         )}
 
         <p className={styles.dateShowing}>Showing {formatDay(range.from)} to {formatDay(range.to)}</p>
-
-        {notice && <p className={styles.notice}>{notice}</p>}
 
         <div className={styles.summaryGrid}>
           <div className={styles.summaryCard}>
@@ -368,7 +364,17 @@ function Transactions() {
                 {loading ? (
                   <tr><td colSpan="6" className={styles.emptyState}>Loading transactions...</td></tr>
                 ) : transactions.length === 0 ? (
-                  <tr><td colSpan="6" className={styles.emptyState}>No transactions found</td></tr>
+                  <tr>
+                    <td colSpan="6" style={{ padding: 0, border: 'none' }}>
+                      <EmptyState 
+                        icon="💸" 
+                        title="No transactions yet" 
+                        description="Get started by adding your first income or expense."
+                        actionLabel="+ Add Transaction"
+                        onAction={openForm}
+                      />
+                    </td>
+                  </tr>
                 ) : (
                   pageRows.map((tx) => {
                     const catName = getCategoryName(tx.category_id);
@@ -377,7 +383,7 @@ function Transactions() {
                     return (
                       <tr key={tx.id}>
                         <td className={styles.dateCell}>{formatDay(tx.date)}</td>
-                        <td className={styles.descCell}>{tx.note || ""}</td>
+                        <td className={styles.descCell}>{tx.note || "No description"}</td>
                         <td>
                           <div className={styles.categoryCell}>
                             <span className={styles.dot} style={{ backgroundColor: getCategoryColor(catName) }} />
@@ -391,7 +397,6 @@ function Transactions() {
                         <td className={styles.textRight}>
                           <div className={styles.rowActions}>
                             <button className={styles.iconBtn} onClick={() => openEdit(tx)} aria-label="Edit transaction" title="Edit"><PencilIcon /></button>
-
                           </div>
                         </td>
                       </tr>
@@ -551,7 +556,6 @@ function Transactions() {
         </div>
       )}
 
-      {/* DELETE CONFIRMATION */}
       {deleteTarget && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>

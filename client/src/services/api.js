@@ -39,7 +39,7 @@ async function request(endpoint, { params = {}, options = {}, retried = false } 
   // Access token expired: refresh once, then retry this request
   if (
     response.status === 401 &&
-    data.code === "TOKEN_EXPIRED" &&
+    data.error?.code === "TOKEN_EXPIRED" &&
     !retried &&
     !NO_REFRESH.includes(endpoint)
   ) {
@@ -48,9 +48,7 @@ async function request(endpoint, { params = {}, options = {}, retried = false } 
   }
 
   if (!response.ok) {
-    const err = new Error(
-      data.message || data.error?.message || data.error || "An error occurred",
-    );
+    const err = new Error(data.error?.message || "An error occurred");
     // Keep the status and full response so callers can read extra fields
     // (for example the transaction and budget counts on a 409).
     err.status = response.status;
@@ -179,4 +177,19 @@ export const api = {
     request("/transactions/summary", { params: { period } }),
   fetchTrends: () => request("/trends"),
   fetchAiTips: () => request("/ai/tips"),
+  // Budget page: each budget's progress plus AI tips
+  fetchBudgetOverview: () => request("/budgets/overview"),
+  // Opens the HTML report for a period in a new tab. The server replies with HTML,
+  // not JSON, so this uses fetch directly.
+  openReport: async (from, to) => {
+    const query = new URLSearchParams({ from, to }).toString();
+    const response = await fetch(`${BASE_URL}/reports?${query}`, { credentials: "include" });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error?.message || "Could not open the report.");
+    }
+    const html = await response.text();
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    window.open(url, "_blank");
+  },
 };

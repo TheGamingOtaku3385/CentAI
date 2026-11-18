@@ -1,17 +1,35 @@
 import React, { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 import { api } from "../services/api";
 import Layout from "../components/Layout/Layout";
 import ProgressBar from "../components/ProgressBar/ProgressBar";
+import EmptyState from "../components/EmptyState/EmptyState";
 import styles from "./Budgets.module.css";
 import { PencilIcon } from "../components/Icons/Icons";
 
 const CATEGORY_ICONS = {
-  "Groceries": "🛒", "Dining Out": "🍽️", "Rent": "🏠", "Utilities": "💡",
-  "Salary": "💰", "Entertainment": "🎬", "Luxury": "💎", "Health & Medical": "🏥",
-  "Subscriptions": "📱", "Education": "🎓", "Transportation": "🚗", "Insurance": "🛡️",
-  "Travel": "✈️", "Personal Care": "💆", "Gifts & Donations": "🎁", "Home Maintenance": "🔨",
-  "Taxes": "🏛️", "Fees & Charges": "⚠️", "Pet Care": "🐾", "Miscellaneous": "📦",
-  "Transfer": "🔄", "Default": "💳"
+  "Groceries": "🛒",
+  "Dining Out": "🍽️",
+  "Rent": "🏠",
+  "Utilities": "💡",
+  "Salary": "💰",
+  "Entertainment": "🎬",
+  "Luxury": "💎",
+  "Health & Medical": "🏥",
+  "Subscriptions": "📱",
+  "Education": "🎓",
+  "Transportation": "🚗",
+  "Insurance": "🛡️",
+  "Travel": "✈️",
+  "Personal Care": "💆",
+  "Gifts & Donations": "🎁",
+  "Home Maintenance": "🔨",
+  "Taxes": "🏛️",
+  "Fees & Charges": "⚠️",
+  "Pet Care": "🐾",
+  "Miscellaneous": "📦",
+  "Transfer": "🔄",
+  "Default": "💳"
 };
 
 function Budgets() {
@@ -25,12 +43,9 @@ function Budgets() {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Set when editing an existing item; null means "create new"
   const [editingBudget, setEditingBudget] = useState(null);
   const [editingGoal, setEditingGoal] = useState(null);
-
-  // Delete confirmation. step "confirm" first; step "choose" only if a goal has contributions
-  const [confirm, setConfirm] = useState(null); // { kind, item, step, contributions, total }
+  const [confirm, setConfirm] = useState(null);
 
   const [budgetForm, setBudgetForm] = useState({ category_id: "", monthly_limit: "" });
   const [goalForm, setGoalForm] = useState({ name: "", target_amount: "", target_date: "" });
@@ -59,8 +74,8 @@ function Budgets() {
 
   // Filter out categories that already have a budget set
   const availableCategories = editingBudget
-    ? categories.filter((cat) => cat.id === editingBudget.category_id)
-    : categories.filter((cat) => !budgets.some((b) => b.category_id === cat.id));
+    ? categories.filter((cat) => Number(cat.id) === Number(editingBudget.category_id))
+    : categories.filter((cat) => !budgets.some((b) => Number(b.category_id) === Number(cat.id)));
 
   const closeBudgetModal = () => {
     setShowBudgetModal(false);
@@ -81,10 +96,13 @@ function Budgets() {
     setShowBudgetModal(true);
   };
 
-  const openEditBudget = (bg) => {
+  const openEditBudget = (budget) => {
     setErrorMsg("");
-    setEditingBudget(bg);
-    setBudgetForm({ category_id: String(bg.category_id), monthly_limit: String(bg.monthly_limit) });
+    setEditingBudget(budget);
+    setBudgetForm({
+      category_id: String(budget.category_id),
+      monthly_limit: String(budget.monthly_limit),
+    });
     setShowBudgetModal(true);
   };
 
@@ -113,16 +131,18 @@ function Budgets() {
     try {
       if (editingBudget) {
         await api.updateBudget(editingBudget.id, parseFloat(budgetForm.monthly_limit));
+        toast.success("Budget updated successfully!");
       } else {
         await api.createBudget({
           category_id: Number(budgetForm.category_id),
           monthly_limit: parseFloat(budgetForm.monthly_limit)
         });
+        toast.success("Budget created successfully!");
       }
       closeBudgetModal();
       await loadData();
     } catch (err) {
-      setErrorMsg(err.message || "Failed to create budget.");
+      toast.error(err.message || "Failed to create budget.");
     } finally {
       setSaving(false);
     }
@@ -133,7 +153,7 @@ function Budgets() {
     setSaving(true);
     setErrorMsg("");
 
-    // Frontend check for duplicate goal name (case-insensitive)
+    // Frontend check for duplicate goal name
     const isDuplicate = goals.some(
       (g) =>
         g.id !== editingGoal?.id &&
@@ -145,21 +165,23 @@ function Budgets() {
       return;
     }
 
-    const payload = {
-      name: goalForm.name.trim(),
-      target_amount: parseFloat(goalForm.target_amount),
-      target_date: goalForm.target_date
-    };
     try {
+      const payload = {
+        name: goalForm.name.trim(),
+        target_amount: parseFloat(goalForm.target_amount),
+        target_date: goalForm.target_date
+      };
       if (editingGoal) {
         await api.updateSavingsGoal(editingGoal.id, payload);
+        toast.success("Savings goal updated!");
       } else {
         await api.createSavingsGoal(payload);
+        toast.success("Savings goal created!");
       }
       closeGoalModal();
       await loadData();
     } catch (err) {
-      setErrorMsg(err.message || "Failed to create goal.");
+      toast.error(err.message || "Failed to create goal.");
     } finally {
       setSaving(false);
     }
@@ -171,24 +193,26 @@ function Budgets() {
   };
 
   const runDelete = async (money) => {
+    if (!confirm) return;
     setSaving(true);
     setErrorMsg("");
     try {
       if (confirm.kind === "budget") {
         await api.deleteBudget(confirm.item.id);
+        toast.success("Budget deleted.");
       } else {
         await api.deleteSavingsGoal(confirm.item.id, money);
+        toast.success("Savings goal deleted.");
       }
       setConfirm(null);
       await loadData();
     } catch (err) {
-      // Goal has contributions: ask the user what happens to the money
       if (confirm.kind === "goal" && err.status === 409) {
         setConfirm({
           ...confirm,
           step: "choose",
           contributions: err.data.contributions,
-          total: err.data.total
+          total: err.data.total,
         });
       } else {
         setErrorMsg(err.message || "Failed to delete.");
@@ -224,53 +248,66 @@ function Budgets() {
         </div>
 
         <div className={styles.budgetGrid}>
-          <div className={styles.donutCard}>
-            <div className={styles.donutChart} style={{ background: `conic-gradient(#4a7fc4 ${totalPercent}%, #f0f0eb 0)` }}>
-              <div className={styles.donutInner}>
-                <span className={styles.donutPercent}>{totalPercent}%</span>
-                <span className={styles.donutLabel}>spent</span>
-              </div>
+          {budgets.length === 0 ? (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <EmptyState 
+                icon="🎯" 
+                title="No budgets set" 
+                description="Create a monthly limit for a category to start tracking your spending."
+                actionLabel="+ Add Budget"
+                onAction={() => setShowBudgetModal(true)}
+              />
             </div>
-            <div className={styles.donutStats}>
-              <div className={styles.statRow}>
-                <span className={styles.statLabel}>Total Spent</span>
-                <span className={styles.statValue}>${totalSpent.toLocaleString()}</span>
-              </div>
-              <div className={styles.statRow}>
-                <span className={styles.statLabel}>Total Limit</span>
-                <span className={styles.statValue}>${totalBudgeted.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-
-          {budgets.map((bg) => {
-            const limit = parseFloat(bg.monthly_limit || 0);
-            const spent = parseFloat(bg.spent || 0);
-            const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
-            const isOver = pct > 100;
-            const icon = CATEGORY_ICONS[bg.category_name] || CATEGORY_ICONS.Default;
-
-            return (
-              <div key={bg.id} className={styles.budgetCard}>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitleGroup}>
-                    <span className={styles.icon}>{icon}</span>
-                    <span className={styles.cardTitle}>{bg.category_name}</span>
+          ) : (
+            <>
+              <div className={styles.donutCard}>
+                <div className={styles.donutChart} style={{ background: `conic-gradient(#4a7fc4 ${totalPercent}%, #f0f0eb 0)` }}>
+                  <div className={styles.donutInner}>
+                    <span className={styles.donutPercent}>{totalPercent}%</span>
+                    <span className={styles.donutLabel}>spent</span>
                   </div>
-                  <span className={`${styles.badge} ${isOver ? styles.badgeRed : styles.badgeGrey}`}>{pct}%</span>
                 </div>
-                <div className={styles.cardAmounts}>
-                  <span className={styles.spentAmount}>${spent}</span>
-                  <span className={styles.limitAmount}>of ${limit}</span>
-                </div>
-                <ProgressBar value={spent} max={limit} tone={isOver ? "red" : "blue"} />
-                <div className={styles.cardActions}>
-                  <button className={styles.iconBtn} onClick={() => openEditBudget(bg)} aria-label="Edit budget" title="Edit"><PencilIcon /></button>
-
+                <div className={styles.donutStats}>
+                  <div className={styles.statRow}>
+                    <span className={styles.statLabel}>Total Spent</span>
+                    <span className={styles.statValue}>${totalSpent.toLocaleString()}</span>
+                  </div>
+                  <div className={styles.statRow}>
+                    <span className={styles.statLabel}>Total Limit</span>
+                    <span className={styles.statValue}>${totalBudgeted.toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
-            );
-          })}
+
+              {budgets.map((bg) => {
+                const limit = parseFloat(bg.monthly_limit || 0);
+                const spent = parseFloat(bg.spent || 0);
+                const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+                const isOver = pct > 100;
+                const icon = CATEGORY_ICONS[bg.category_name] || CATEGORY_ICONS.Default;
+
+                return (
+                  <div key={bg.id} className={styles.budgetCard}>
+                    <div className={styles.cardHeader}>
+                      <div className={styles.cardTitleGroup}>
+                        <span className={styles.icon}>{icon}</span>
+                        <span className={styles.cardTitle}>{bg.category_name}</span>
+                      </div>
+                      <span className={`${styles.badge} ${isOver ? styles.badgeRed : styles.badgeGrey}`}>{pct}%</span>
+                    </div>
+                    <div className={styles.cardAmounts}>
+                      <span className={styles.spentAmount}>${spent}</span>
+                      <span className={styles.limitAmount}>of ${limit}</span>
+                    </div>
+                    <ProgressBar value={spent} max={limit} tone={isOver ? "red" : "blue"} />
+                    <div className={styles.cardActions}>
+                      <button className={styles.iconBtn} onClick={() => openEditBudget(bg)} aria-label="Edit budget" title="Edit"><PencilIcon /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* BOTTOM SECTION: GOALS */}
@@ -282,33 +319,43 @@ function Budgets() {
           <button className={styles.addBtn} onClick={openNewGoal}>+ Add Goal</button>
         </div>
 
-        <div className={styles.goalGrid}>
-          {goals.map((goal) => {
-            const saved = parseFloat(goal.current_amount || 0);
-            const target = parseFloat(goal.target_amount || 0);
-            const pct = target > 0 ? Math.round((saved / target) * 100) : 0;
-            return (
-              <div key={goal.id} className={styles.goalCard}>
-                <div className={styles.cardHeader}>
-                  <span className={styles.cardTitle}>{goal.name}</span>
-                  <span className={styles.badgeGreen}>{pct}%</span>
+        {goals.length === 0 ? (
+          <EmptyState 
+            icon="🏆" 
+            title="No savings goals yet" 
+            description="Create a goal to start saving towards your next big milestone."
+            actionLabel="+ Add Goal"
+            onAction={() => setShowGoalModal(true)}
+          />
+        ) : (
+          <div className={styles.goalGrid}>
+            {goals.map((goal) => {
+              const saved = parseFloat(goal.current_amount || 0);
+              const target = parseFloat(goal.target_amount || 0);
+              const pct = target > 0 ? Math.round((saved / target) * 100) : 0;
+              
+              return (
+                <div key={goal.id} className={styles.goalCard}>
+                  <div className={styles.cardHeader}>
+                    <span className={styles.cardTitle}>{goal.name}</span>
+                    <span className={styles.badgeGreen}>{pct}%</span>
+                  </div>
+                  <p className={styles.goalDate}>Target completion: {formatDate(goal.target_date)}</p>
+                  <div className={styles.goalProgress}>
+                    <ProgressBar value={saved} max={target} tone="green" />
+                  </div>
+                  <div className={styles.goalAmounts}>
+                    <span className={styles.goalSaved}>${saved.toLocaleString()}</span>
+                    <span className={styles.goalTarget}>${target.toLocaleString()} goal</span>
+                  </div>
+                  <div className={styles.cardActions}>
+                    <button className={styles.iconBtn} onClick={() => openEditGoal(goal)} aria-label="Edit goal" title="Edit"><PencilIcon /></button>
+                  </div>
                 </div>
-                <p className={styles.goalDate}>Target completion: {formatDate(goal.target_date)}</p>
-                <div className={styles.goalProgress}>
-                  <ProgressBar value={saved} max={target} tone="green" />
-                </div>
-                <div className={styles.goalAmounts}>
-                  <span className={styles.goalSaved}>${saved.toLocaleString()}</span>
-                  <span className={styles.goalTarget}>${target.toLocaleString()} goal</span>
-                </div>
-                <div className={styles.cardActions}>
-                  <button className={styles.iconBtn} onClick={() => openEditGoal(goal)} aria-label="Edit goal" title="Edit"><PencilIcon /></button>
-
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* BUDGET MODAL */}
@@ -324,12 +371,7 @@ function Budgets() {
             <form onSubmit={handleCreateBudget}>
               <div className={styles.formGroup}>
                 <label>Category</label>
-                <select 
-                  value={budgetForm.category_id} 
-                  onChange={(e) => setBudgetForm({ ...budgetForm, category_id: e.target.value })}
-                  disabled={!!editingBudget}
-                  required
-                >
+                <select value={budgetForm.category_id} onChange={(e) => setBudgetForm({ ...budgetForm, category_id: e.target.value })} disabled={!!editingBudget} required>
                   <option value="">Select a category</option>
                   {availableCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -338,12 +380,7 @@ function Budgets() {
               </div>
               <div className={styles.formGroup}>
                 <label>Monthly Limit ($)</label>
-                <input 
-                  type="number" step="0.01" min="0" placeholder="0.00"
-                  value={budgetForm.monthly_limit} 
-                  onChange={(e) => setBudgetForm({ ...budgetForm, monthly_limit: e.target.value })}
-                  required
-                />
+                <input type="number" step="0.01" min="0" placeholder="0.00" value={budgetForm.monthly_limit} onChange={(e) => setBudgetForm({ ...budgetForm, monthly_limit: e.target.value })} required />
               </div>
               {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
               <div className={styles.modalFooter}>
@@ -352,9 +389,9 @@ function Budgets() {
                     type="button"
                     className={`${styles.dangerBtn} ${styles.deleteInModal}`}
                     onClick={() => {
-                      const item = editingBudget;
+                      const budget = editingBudget;
                       closeBudgetModal();
-                      askDelete("budget", item);
+                      askDelete("budget", budget);
                     }}
                     disabled={saving}
                   >
@@ -382,30 +419,15 @@ function Budgets() {
             <form onSubmit={handleCreateGoal}>
               <div className={styles.formGroup}>
                 <label>Goal Name</label>
-                <input 
-                  type="text" placeholder="e.g. New Car, Vacation"
-                  value={goalForm.name} 
-                  onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })}
-                  required
-                />
+                <input type="text" placeholder="e.g. New Car, Vacation" value={goalForm.name} onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })} required />
               </div>
               <div className={styles.formGroup}>
                 <label>Target Amount ($)</label>
-                <input 
-                  type="number" step="0.01" min="0" placeholder="0.00"
-                  value={goalForm.target_amount} 
-                  onChange={(e) => setGoalForm({ ...goalForm, target_amount: e.target.value })}
-                  required
-                />
+                <input type="number" step="0.01" min="0" placeholder="0.00" value={goalForm.target_amount} onChange={(e) => setGoalForm({ ...goalForm, target_amount: e.target.value })} required />
               </div>
               <div className={styles.formGroup}>
                 <label>Target Date</label>
-                <input 
-                  type="date" 
-                  value={goalForm.target_date} 
-                  onChange={(e) => setGoalForm({ ...goalForm, target_date: e.target.value })}
-                  required
-                />
+                <input type="date" value={goalForm.target_date} onChange={(e) => setGoalForm({ ...goalForm, target_date: e.target.value })} required />
               </div>
               {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
               <div className={styles.modalFooter}>
@@ -414,9 +436,9 @@ function Budgets() {
                     type="button"
                     className={`${styles.dangerBtn} ${styles.deleteInModal}`}
                     onClick={() => {
-                      const item = editingGoal;
+                      const goal = editingGoal;
                       closeGoalModal();
-                      askDelete("goal", item);
+                      askDelete("goal", goal);
                     }}
                     disabled={saving}
                   >
@@ -431,7 +453,6 @@ function Budgets() {
         </div>
       )}
 
-      {/* DELETE CONFIRMATION */}
       {confirm && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
@@ -441,13 +462,11 @@ function Budgets() {
             </div>
 
             {confirm.step === "confirm" && (
-              <>
-                <p className={styles.modalSubtitle}>
-                  {confirm.kind === "budget"
-                    ? `"${confirm.item.category_name}" will stop being tracked. Your transactions are not affected.`
-                    : `"${confirm.item.name}" will be removed. Your savings are not moved unless you choose below.`}
-                </p>
-              </>
+              <p className={styles.modalSubtitle}>
+                {confirm.kind === "budget"
+                  ? `"${confirm.item.category_name}" will stop being tracked. Your transactions are not affected.`
+                  : `"${confirm.item.name}" will be removed. Your savings are not moved unless you choose below.`}
+              </p>
             )}
 
             {confirm.step === "choose" && (
