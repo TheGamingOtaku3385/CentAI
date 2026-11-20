@@ -4,6 +4,7 @@ import { api } from "../services/api";
 import Layout from "../components/Layout/Layout";
 import ProgressBar from "../components/ProgressBar/ProgressBar";
 import EmptyState from "../components/EmptyState/EmptyState";
+import Card from "../components/Card/Card";
 import styles from "./Budgets.module.css";
 import { PencilIcon } from "../components/Icons/Icons";
 
@@ -34,6 +35,7 @@ const CATEGORY_ICONS = {
 
 function Budgets() {
   const [budgets, setBudgets] = useState([]);
+  const [overview, setOverview] = useState(null);
   const [goals, setGoals] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,7 @@ function Budgets() {
         api.fetchSavingsGoals ? api.fetchSavingsGoals() : Promise.resolve([]),
         api.fetchCategories()
       ]);
+      api.fetchBudgetOverview().then(setOverview).catch(() => setOverview(null));
       setBudgets(budgetData);
       setGoals(goalData);
       setCategories(catData.filter(c => c.name !== "Transfer"));
@@ -76,6 +79,7 @@ function Budgets() {
   const availableCategories = editingBudget
     ? categories.filter((cat) => Number(cat.id) === Number(editingBudget.category_id))
     : categories.filter((cat) => !budgets.some((b) => Number(b.category_id) === Number(cat.id)));
+  const overviewTips = overview?.tips?.tips ?? [];
 
   const closeBudgetModal = () => {
     setShowBudgetModal(false);
@@ -235,7 +239,7 @@ function Budgets() {
   if (loading) return <Layout><div className={styles.loading}>Loading...</div></Layout>;
 
   return (
-    <Layout title="Budgets & Goals" subtitle="Tuesday, September 15 · Your plan is 82% on track">
+    <Layout title="Budgets & Goals" subtitle="Manage your monthly budgets and savings goals.">
       <div className={styles.pageWrapper}>
         
         {/* TOP SECTION: BUDGETS */}
@@ -299,7 +303,9 @@ function Budgets() {
                       <span className={styles.spentAmount}>${spent}</span>
                       <span className={styles.limitAmount}>of ${limit}</span>
                     </div>
-                    <ProgressBar value={spent} max={limit} tone={isOver ? "red" : "blue"} />
+                    <div>
+                      <ProgressBar value={spent} max={limit} tone={isOver ? "red" : "blue"} />
+                    </div>
                     <div className={styles.cardActions}>
                       <button className={styles.iconBtn} onClick={() => openEditBudget(bg)} aria-label="Edit budget" title="Edit"><PencilIcon /></button>
                     </div>
@@ -309,6 +315,19 @@ function Budgets() {
             </>
           )}
         </div>
+
+        {overviewTips.length > 0 && (
+          <Card title="Tips">
+            {overviewTips.map((tip, index) => (
+              <article key={`${tip.category ?? "general"}-${tip.title}-${index}`}>
+                <p>
+                  <strong>{tip.category ? `${tip.category}: ` : ""}{tip.title}</strong>
+                </p>
+                <p>{tip.body}</p>
+              </article>
+            ))}
+          </Card>
+        )}
 
         {/* BOTTOM SECTION: GOALS */}
         <div className={styles.sectionHeader} style={{ marginTop: "32px" }}>

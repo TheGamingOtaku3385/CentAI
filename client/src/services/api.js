@@ -82,15 +82,15 @@ export const api = {
       },
     }),
   fetchMe: () => request("/auth/me"),
-  fetchAccounts: (params) => request("/accounts", { params }),
-  createAccount: (accountData) =>
-    request("/accounts", {
-      params: {},
-      options: {
-        method: "POST",
-        body: JSON.stringify(accountData),
-      },
+  updateProfile: (profile) =>
+    request("/auth/me", {
+      options: { method: "PATCH", body: JSON.stringify(profile) },
     }),
+  deleteAccount: () =>
+    request("/auth/me", {
+      options: { method: "DELETE" },
+    }),
+  fetchAccounts: (params) => request("/accounts", { params }),
   fetchTransactions: (params) => request("/transactions", { params }),
   fetchCategories: () => request("/categories"),
   createCategory: (name) =>
@@ -159,13 +159,6 @@ export const api = {
         body: JSON.stringify(data),
       },
     }),
-  parseAIInput: (text) =>
-    request("/ai/parse", {
-      options: {
-        method: "POST",
-        body: JSON.stringify({ text }),
-      },
-    }),
   chatAI: (text, draft) =>
     request("/ai/chat", {
       options: {
@@ -181,7 +174,7 @@ export const api = {
   fetchBudgetOverview: () => request("/budgets/overview"),
   // Opens the HTML report for a period in a new tab. The server replies with HTML,
   // not JSON, so this uses fetch directly.
-  openReport: async (from, to) => {
+  openReport: async (from, to, win) => {
     const query = new URLSearchParams({ from, to }).toString();
     const response = await fetch(`${BASE_URL}/reports?${query}`, { credentials: "include" });
     if (!response.ok) {
@@ -190,6 +183,7 @@ export const api = {
     }
     const html = await response.text();
     const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    window.open(url, "_blank");
+    if (win) win.location = url;
+    else window.open(url, "_blank");
   },
 };

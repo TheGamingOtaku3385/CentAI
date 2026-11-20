@@ -1,17 +1,93 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Filler,
+  Legend,
+  Tooltip,
+} from "chart.js";
 import { api } from "../services/api";
 import Layout from "../components/Layout/Layout";
+import AiTips from "../components/AiTips/AiTips";
 import Card from "../components/Card/Card";
 import ProgressBar from "../components/ProgressBar/ProgressBar";
 import EmptyState from "../components/EmptyState/EmptyState";
 import styles from "./Overview.module.css";
+
+Chart.register(LineController, LineElement, PointElement, CategoryScale, LinearScale, Filler, Legend, Tooltip);
 
 function greeting() {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
+}
+
+function currentDate() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function capitalizeFirst(value) {
+  const name = typeof value === "string" ? value.trim() : "";
+  return name ? `${name[0].toUpperCase()}${name.slice(1)}` : "User";
+}
+
+function shortMonth(ym) {
+  const [year, month] = ym.split("-").map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+    month: "short",
+  });
+}
+
+function dateAtMidnight(value) {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getGoalPace(goals) {
+  if (!goals?.length) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let totalTarget = 0;
+  let expectedSaved = 0;
+  let actualSaved = 0;
+
+  for (const goal of goals) {
+    const target = Number(goal.target_amount);
+    if (!Number.isFinite(target) || target <= 0) continue;
+
+    const created = dateAtMidnight(goal.created_at);
+    const deadline = dateAtMidnight(goal.target_date);
+    const duration = deadline.getTime() - created.getTime();
+    const elapsed = today.getTime() - created.getTime();
+    const expectedProgress = duration <= 0
+      ? 1
+      : Math.max(0, Math.min(1, elapsed / duration));
+    const actualProgress = Math.max(
+      0,
+      Math.min(1, Number(goal.current_amount || 0) / target),
+    );
+
+    totalTarget += target;
+    expectedSaved += target * expectedProgress;
+    actualSaved += target * actualProgress;
+  }
+
+  if (totalTarget === 0) return null;
+  const paceDifference = ((actualSaved - expectedSaved) / totalTarget) * 100;
+  if (paceDifference < -10) return "slow";
+  if (paceDifference > 10) return "fast";
+  return "moderate";
 }
 
 function Overview() {
@@ -21,6 +97,12 @@ function Overview() {
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [goals, setGoals] = useState(null);
+  const [goalError, setGoalError] = useState("");
+  const [trendData, setTrendData] = useState(null);
+  const [trendError, setTrendError] = useState("");
+  const trendCanvasRef = useRef(null);
+  const trendChartRef = useRef(null);
 
   useEffect(() => {
     async function load() {
@@ -52,20 +134,105 @@ function Overview() {
     load();
   }, [navigate]);
 
+  useEffect(() => {
+    let cancelled = false;
+    api.fetchTrends().then((data) => {
+      if (!cancelled) setTrendData(data);
+    }).catch((err) => {
+      if (!cancelled) {
+        console.error("Overview trends load error:", err);
+        setTrendError(err.message || "Could not load trends.");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.fetchSavingsGoals().then((data) => {
+      if (!cancelled) setGoals(data);
+    }).catch((err) => {
+      if (!cancelled) {
+        console.error("Overview goals load error:", err);
+        setGoalError(err.message || "Could not load savings goals.");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!trendData?.monthly || !trendCanvasRef.current) return;
+
+    trendChartRef.current?.destroy();
+    trendChartRef.current = new Chart(trendCanvasRef.current, {
+      type: "line",
+      data: {
+        labels: trendData.monthly.map((month) => shortMonth(month.month)),
+        datasets: [
+          {
+            data: trendData.monthly.map((month) => month.expenses),
+            fill: true,
+            tension: 0.3,
+            borderColor: "#4a7fc4",
+            backgroundColor: "rgba(74, 127, 196, 0.1)",
+            borderWidth: 2,
+            pointRadius: 2,
+            pointBackgroundColor: "#4a7fc4",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) =>
+                `$${Number(context.parsed.y).toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}`,
+            },
+          },
+        },
+        scales: {
+          y: { display: false, beginAtZero: true },
+          x: {
+            grid: { display: false },
+            ticks: { color: "#9ca3af", font: { size: 10 } },
+          },
+        },
+      },
+    });
+
+    return () => {
+      trendChartRef.current?.destroy();
+      trendChartRef.current = null;
+    };
+  }, [trendData]);
+
   const totalBalance = accounts.reduce(
     (sum, a) => sum + parseFloat(a.balance || 0),
     0
   );
-
-  // Calculate real Plan Health based on budgets
-  const safeBudgets = budgets.filter((b) => parseFloat(b.monthly_limit) > 0);
-  const budgetsOnTrack = safeBudgets.filter(
-    (b) => parseFloat(b.spent || 0) <= parseFloat(b.monthly_limit)
-  ).length;
-  
-  const planHealthPct = safeBudgets.length > 0 
-    ? Math.round((budgetsOnTrack / safeBudgets.length) * 100) 
+  const goalTarget = goals?.reduce(
+    (sum, goal) => sum + Number(goal.target_amount || 0),
+    0,
+  ) || 0;
+  const goalSaved = goals?.reduce(
+    (sum, goal) => sum + Number(goal.current_amount || 0),
+    0,
+  ) || 0;
+  const goalHealth = goalTarget > 0
+    ? Math.max(0, Math.min(100, Math.round((goalSaved / goalTarget) * 100)))
     : 0;
+  const goalPace = getGoalPace(goals);
+  const currentMonthNet = trendData?.monthly?.[trendData.monthly.length - 1]?.net;
 
   const getCategoryColor = (name) => {
     const colors = ["#c4453a", "#2d7a5f", "#d99a2b", "#4a7fc4", "#6b7280", "#8b5cf6"];
@@ -73,13 +240,29 @@ function Overview() {
     for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return colors[Math.abs(hash) % colors.length];
   };
+  const trendChange = trendData?.month_over_month?.[0]?.change_percent;
+  const hasTrendChange = typeof trendChange === "number";
+  const trendValueClass = !hasTrendChange
+    ? styles.trendValue
+    : trendChange > 0
+      ? `${styles.trendValue} ${styles.trendUp}`
+      : trendChange < 0
+        ? `${styles.trendValue} ${styles.trendDown}`
+        : styles.trendValue;
+  const trendDescription = !hasTrendChange
+    ? "Not enough data to calculate trends yet."
+    : trendChange > 0
+      ? `Spending increased by ${trendChange.toFixed(1)}% since last month.`
+      : trendChange < 0
+        ? `Spending decreased by ${Math.abs(trendChange).toFixed(1)}% since last month.`
+        : "Spending is unchanged from last month.";
 
   if (loading) return <Layout><div className={styles.loading}>Loading...</div></Layout>;
 
   return (
     <Layout
-      title={`${greeting()}, ${user?.name || "User"}`}
-      subtitle="Your financial dashboard"
+      title={`${greeting()}, ${capitalizeFirst(user?.name)}`}
+      subtitle={currentDate()}
     >
       <div className={styles.dashboardGrid}>
         
@@ -93,26 +276,51 @@ function Overview() {
               <p className={styles.heroAmount}>
                 ${totalBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </p>
-              <span className={styles.heroTrend}>↗ $0.00 this month</span>
+              {typeof currentMonthNet === "number" && (
+                <p className={`${styles.heroMonthChange} ${currentMonthNet < 0 ? styles.heroMonthNegative : ""}`}>
+                  {currentMonthNet < 0 ? "↘ −" : "↗ "}$
+                  {Math.abs(currentMonthNet).toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })} this month
+                </p>
+              )}
             </div>
-            <div className={styles.heroRight}>
+            <div className={styles.heroPace}>
               <span className={styles.heroLabel}>GOAL PACE</span>
-              <div className={styles.paceToggle}>
-                <button className={styles.paceBtn}>Slow</button>
-                <button className={`${styles.paceBtn} ${styles.paceBtnActive}`}>Moderate</button>
-                <button className={styles.paceBtn}>Fast</button>
+              <div className={styles.paceOptions} role="img" aria-label={goalPace ? `Goal pace: ${goalPace}` : "No goal pace available"}>
+                {["slow", "moderate", "fast"].map((pace) => (
+                  <span
+                    key={pace}
+                    className={`${styles.paceOption} ${goalPace === pace ? styles.paceOptionActive : ""}`}
+                  >
+                    {pace[0].toUpperCase() + pace.slice(1)}
+                  </span>
+                ))}
               </div>
-              <span className={styles.heroGoal}>Set a goal to track progress</span>
+              <p className={styles.paceNote}>
+                {goalError
+                  ? "Goal pace unavailable."
+                  : goals === null
+                    ? "Loading goals..."
+                    : !goalPace
+                      ? "Set a goal to track progress."
+                      : goalPace === "slow"
+                        ? "Goals are behind their target-date pace."
+                        : goalPace === "fast"
+                          ? "Goals are ahead of their target-date pace."
+                          : "Goals are on pace for their target dates."}
+              </p>
             </div>
           </section>
 
-          {/* Accounts + Trends Row */}
-          <div className={styles.rowGrid}>
+          <div className={styles.overviewTopGrid}>
+            {/* Accounts */}
             <Card title="Accounts" action="Click to edit goals">
               {accounts.length === 0 ? (
-                <EmptyState 
-                  icon="🏦" 
-                  title="No accounts yet" 
+                <EmptyState
+                  icon="🏦"
+                  title="No accounts yet"
                   description="Connect your bank or add a manual account to get started."
                 />
               ) : (
@@ -138,20 +346,30 @@ function Overview() {
               )}
             </Card>
 
-            <Card title="Trends" action="6 MONTHS">
-              <div className={styles.trendNumber}>0.0%</div>
-              <p className={styles.trendDesc}>Not enough data to calculate trends yet.</p>
-              <div className={styles.chartBars}>
-                <div className={styles.bar} style={{ height: '0%' }}></div>
-                <div className={styles.bar} style={{ height: '0%' }}></div>
-                <div className={styles.bar} style={{ height: '0%' }}></div>
-                <div className={styles.bar} style={{ height: '0%' }}></div>
-                <div className={styles.bar} style={{ height: '0%' }}></div>
-                <div className={`${styles.bar} ${styles.barActive}`} style={{ height: '0%' }}></div>
-              </div>
-              <div className={styles.chartLabels}>
-                <span>A</span><span>M</span><span>J</span><span>J</span><span>A</span><span>S</span>
-              </div>
+            <Card title="Trends" action="6 MONTHS" className={styles.trendCard}>
+              {trendError ? (
+                <p className={styles.trendDescription} role="alert">{trendError}</p>
+              ) : !trendData ? (
+                <p className={styles.trendDescription}>Loading trends...</p>
+              ) : (
+                <>
+                  <div className={styles.trendSummary}>
+                    <strong className={trendValueClass}>
+                      {hasTrendChange
+                        ? `${trendChange > 0 ? "+" : ""}${trendChange.toFixed(1)}%`
+                        : "0.0%"}
+                    </strong>
+                    <p className={styles.trendDescription}>{trendDescription}</p>
+                  </div>
+                  <div className={styles.trendChartWrapper}>
+                    <canvas
+                      ref={trendCanvasRef}
+                      aria-label="Monthly expenses over the last six months"
+                      role="img"
+                    />
+                  </div>
+                </>
+              )}
             </Card>
           </div>
 
@@ -219,42 +437,35 @@ function Overview() {
 
         {/* ================= RIGHT RAIL ================= */}
         <div className={styles.rightRail}>
-          
-          <Card title="Plan health" action={<span className={planHealthPct > 80 ? styles.textGreen : styles.textAmber}>{planHealthPct}%</span>}>
-            <div className={styles.healthContent}>
-              <div className={styles.donut} style={{ background: `conic-gradient(var(--color-primary) ${planHealthPct}%, #e5e5e0 0)` }}>
-                <div className={styles.donutInner}>{planHealthPct}%</div>
+          <Card
+            title="Plan health"
+            action={goals && !goalError ? `${goalHealth}%` : undefined}
+          >
+            {goalError ? (
+              <p className={styles.healthMessage} role="alert">{goalError}</p>
+            ) : goals === null ? (
+              <p className={styles.healthMessage}>Loading goal health...</p>
+            ) : (
+              <div className={styles.healthContent}>
+                <div
+                  className={styles.healthGauge}
+                  style={{
+                    background: `conic-gradient(var(--color-green) ${goalHealth}%, var(--color-surface-muted) 0)`,
+                  }}
+                  role="img"
+                  aria-label={`Overall goal completion: ${goalHealth}%`}
+                >
+                  <div className={styles.healthGaugeInner}>{goalHealth}%</div>
+                </div>
+                <p className={styles.healthMessage}>
+                  {goals.length === 0
+                    ? "Add savings goals to start tracking your plan health."
+                    : `Overall progress across ${goals.length} ${goals.length === 1 ? "goal" : "goals"}.`}
+                </p>
               </div>
-              <p className={styles.healthText}>
-                {safeBudgets.length === 0 
-                  ? "Add budgets to start tracking your plan health." 
-                  : `You're within range on ${budgetsOnTrack} of ${safeBudgets.length} monthly goals.`}
-              </p>
-            </div>
+            )}
           </Card>
-
-          <Card title="Centavo-ai tips" action="UPDATED">
-            <div className={`${styles.tipCard} ${styles.tipGreen}`}>
-              <strong>Ready to get started?</strong>
-              <p>Add your first transaction to start receiving personalized AI tips.</p>
-              <span className={styles.tipAction}>ADD TRANSACTION →</span>
-            </div>
-          </Card>
-
-          <Card title="Review & corrections" action={<span className={styles.actionRed}>0 ITEMS</span>}>
-            <ul className={styles.reviewList}>
-              <li className={styles.emptyState}>You're all caught up!</li>
-            </ul>
-          </Card>
-
-          <Card title="Ask Centavo-ai">
-            <p className={styles.askText}>Have a question about your finances?</p>
-            <div className={styles.askInput}>
-              <input type="text" placeholder="Try 'how am I doing this month?'" />
-              <button>↑</button>
-            </div>
-          </Card>
-
+          <AiTips tipClassName={`${styles.tipCard} ${styles.tipGreen}`} />
         </div>
       </div>
     </Layout>
